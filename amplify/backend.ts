@@ -1,8 +1,12 @@
 import { defineBackend } from '@aws-amplify/backend';
+import { auth } from './auth/resource';
 import { data } from './data/resource';
-import { runBacktest } from './functions/run-backtest/resource';
+import { findMatches } from './functions/find-matches/resource';
+import { acceptMatchRequest } from './functions/accept-match-request/resource';
 
 defineBackend({
+  auth,
   data,
-  runBacktest,
+  findMatches,
+  acceptMatchRequest,
 });

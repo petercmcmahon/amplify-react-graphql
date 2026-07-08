@@ -1,22 +1,37 @@
+import { Authenticator } from '@aws-amplify/ui-react';
 import { BrowserRouter, Link, Route, Routes } from 'react-router-dom';
-import { ResearchToolDisclaimer } from './components/ResearchToolDisclaimer';
-import { BacktestConfigPage } from './pages/BacktestConfigPage';
-import { BacktestResultsPage } from './pages/BacktestResultsPage';
+import { MatchesPage } from './pages/MatchesPage';
+import { ProfilePage } from './pages/ProfilePage';
+import { RequestsPage } from './pages/RequestsPage';
 
 function App() {
   return (
-    <BrowserRouter>
-      <ResearchToolDisclaimer />
-      <nav style={{ padding: '0.75rem 1rem' }}>
-        <Link to="/">New backtest</Link>
-      </nav>
-      <main style={{ padding: '0 1rem 2rem' }}>
-        <Routes>
-          <Route path="/" element={<BacktestConfigPage />} />
-          <Route path="/results/:resultId" element={<BacktestResultsPage />} />
-        </Routes>
-      </main>
-    </BrowserRouter>
+    <Authenticator>
+      {({ signOut, user }) => (
+        <BrowserRouter>
+          <nav className="app-nav">
+            <div className="app-nav-links">
+              <Link to="/">Matches</Link>
+              <Link to="/requests">My requests</Link>
+              <Link to="/profile">Profile</Link>
+            </div>
+            <div className="app-nav-user">
+              <span className="muted">{user?.signInDetails?.loginId}</span>
+              <button type="button" onClick={signOut}>
+                Sign out
+              </button>
+            </div>
+          </nav>
+          <main className="app-main">
+            <Routes>
+              <Route path="/" element={<MatchesPage />} />
+              <Route path="/requests" element={<RequestsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
+            </Routes>
+          </main>
+        </BrowserRouter>
+      )}
+    </Authenticator>
   );
 }
 

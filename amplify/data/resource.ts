@@ -1,83 +1,101 @@
 import { a, defineData, type ClientSchema } from '@aws-amplify/backend';
-import { runBacktest } from '../functions/run-backtest/resource';
+import { findMatches } from '../functions/find-matches/resource';
+import { acceptMatchRequest } from '../functions/accept-match-request/resource';
 
 const schema = a.schema({
-  Ticker: a
-    .model({
-      symbol: a.string().required(),
-      name: a.string(),
-      sector: a.string(),
-      isPreset: a.boolean().default(true),
-    })
-    .identifier(['symbol'])
-    .authorization((allow) => [allow.publicApiKey()]),
+  MeetingPreference: a.enum(['VIRTUAL', 'IN_PERSON', 'EITHER']),
+  MatchRequestStatus: a.enum([
+    'PENDING',
+    'ACCEPTED',
+    'DECLINED',
+    'SCHEDULED',
+    'COMPLETED',
+    'CANCELLED',
+  ]),
+  MatchDirection: a.enum(['THEY_MENTOR_YOU', 'YOU_MENTOR_THEM', 'BOTH']),
 
-  Headline: a
+  UserProfile: a
     .model({
-      headlineHash: a.string().required(),
-      ticker: a.string().required(),
-      text: a.string().required(),
-      source: a.string(),
-      url: a.string(),
-      publishedAt: a.datetime().required(),
-      sentimentScore: a.float(),
-      relevanceScore: a.float(),
-      sentimentModel: a.string(),
-      scoredAt: a.datetime(),
+      userId: a.string().required(),
+      displayName: a.string().required(),
+      bio: a.string(),
+      industry: a.string(),
+      currentRoleTitle: a.string(),
+      mentorTopics: a.string().array(),
+      seekingTopics: a.string().array(),
+      meetingPreference: a.ref('MeetingPreference').required(),
+      city: a.string(),
+      availabilityNote: a.string(),
+      linkedInUrl: a.string(),
     })
-    .identifier(['headlineHash'])
-    .secondaryIndexes((idx) => [idx('ticker').sortKeys(['publishedAt'])])
-    .authorization((allow) => [allow.publicApiKey()]),
+    .identifier(['userId'])
+    .authorization((allow) => [
+      allow.ownerDefinedIn('userId').identityClaim('sub'),
+      allow.authenticated().to(['read']),
+    ]),
 
-  BacktestConfig: a
+  MatchRequest: a
     .model({
-      name: a.string(),
-      tickers: a.string().array().required(),
-      startDate: a.date().required(),
-      endDate: a.date().required(),
-      sentimentBuyThreshold: a.float().required(),
-      relevanceMinThreshold: a.float().default(0.3),
-      positionSizePct: a.float().required(),
-      holdingPeriodDays: a.integer().required(),
-      stopLossPct: a.float(),
-      takeProfitPct: a.float(),
-      startingCapital: a.float().default(100000),
-      newsSourceAdapter: a.string().default('seed-csv'),
-      results: a.hasOne('BacktestResult', 'configId'),
+      requesterId: a.string().required(),
+      recipientId: a.string().required(),
+      participants: a.string().array().required(),
+      status: a.ref('MatchRequestStatus').required(),
+      requestedAt: a.datetime().required(),
+      matchedTopics: a.string().array(),
+      message: a.string(),
+      icebreakers: a.string().array(),
+      meetingMode: a.enum(['VIRTUAL', 'IN_PERSON']),
+      proposedTime: a.datetime(),
+      proposedBy: a.string(),
+      proposedLocationOrLink: a.string(),
+      confirmedTime: a.datetime(),
     })
-    .authorization((allow) => [allow.publicApiKey()]),
+    .secondaryIndexes((idx) => [
+      idx('recipientId').sortKeys(['requestedAt']),
+      idx('requesterId').sortKeys(['requestedAt']),
+    ])
+    .authorization((allow) => [allow.ownersDefinedIn('participants').identityClaim('sub')]),
 
-  BacktestResult: a
-    .model({
-      configId: a.id().required(),
-      config: a.belongsTo('BacktestConfig', 'configId'),
-      status: a.enum(['PENDING', 'RUNNING', 'COMPLETE', 'FAILED']),
-      errorMessage: a.string(),
-      totalReturnPct: a.float(),
-      sharpeRatio: a.float(),
-      maxDrawdownPct: a.float(),
-      winRatePct: a.float(),
-      totalTrades: a.integer(),
-      equityCurveJson: a.json(),
-      tradeLogJson: a.json(),
-      completedAt: a.datetime(),
-    })
-    .authorization((allow) => [allow.publicApiKey()]),
+  MatchCandidate: a.customType({
+    userId: a.string().required(),
+    displayName: a.string().required(),
+    bio: a.string(),
+    industry: a.string(),
+    currentRoleTitle: a.string(),
+    mentorTopics: a.string().array(),
+    seekingTopics: a.string().array(),
+    meetingPreference: a.ref('MeetingPreference').required(),
+    city: a.string(),
+    score: a.float().required(),
+    matchReasons: a.string().array().required(),
+    matchedTopics: a.string().array().required(),
+    direction: a.ref('MatchDirection').required(),
+  }),
 
-  runBacktest: a
+  findMatches: a
+    .query()
+    .returns(a.ref('MatchCandidate').array())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(findMatches)),
+
+  acceptMatchRequest: a
     .mutation()
-    .arguments({ configId: a.id().required() })
-    .returns(a.customType({ resultId: a.id(), status: a.string() }))
-    .authorization((allow) => [allow.publicApiKey()])
-    .handler(a.handler.function(runBacktest)),
-});
+    .arguments({ requestId: a.id().required() })
+    .returns(a.ref('MatchRequest'))
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(acceptMatchRequest)),
+}).authorization((allow) => [
+  // find-matches needs to read every profile/request to compute matches;
+  // accept-match-request needs to read both profiles and update the request it's accepting.
+  allow.resource(findMatches),
+  allow.resource(acceptMatchRequest),
+]);
 
 export type Schema = ClientSchema<typeof schema>;
 
 export const data = defineData({
   schema,
   authorizationModes: {
-    defaultAuthorizationMode: 'apiKey',
-    apiKeyAuthorizationMode: { expiresInDays: 30 },
+    defaultAuthorizationMode: 'userPool',
   },
 });

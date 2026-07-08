@@ -12,14 +12,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
+    "@aws-amplify/ui-react": "^6.9.3",
     "aws-amplify": "^6.18.0",
     "date-fns": "^4.4.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1",
-    "recharts": "^3.9.2",
-    "yahoo-finance2": "^3.15.4",
-    "zod": "^4.4.3"
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@aws-amplify/backend": "^1.23.0",
